@@ -1,17 +1,14 @@
 package edu.monash;
 
 import edu.monash.model.NativeInvocation;
-import edu.monash.utils.JNIDescriptor;
 import edu.monash.utils.JNIResolve;
 import soot.Scene;
 import soot.SootClass;
 import soot.SootMethod;
 import soot.Type;
-import soot.coffi.Util;
 
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 public class HeuristicUnknownValueInfer {

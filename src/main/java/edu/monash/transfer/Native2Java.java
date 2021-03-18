@@ -80,6 +80,12 @@ public class Native2Java extends SceneTransformer {
                     insertTargetAPI(nativeInvocation, body, units, inferredCls);
                 }
             }
+
+            //add stmt "return xxx;" in units for ending
+            Type targetAPIReturnType = JNIResolve.extractMethodReturnType(nativeInvocation.invokeeSignature);
+            Local returnValueLocal = Jimple.v().newLocal("returnValue", targetAPIReturnType);
+            body.getLocals().add(returnValueLocal);
+            units.add(Jimple.v().newReturnStmt(returnValueLocal));
         }
     }
 
@@ -88,10 +94,11 @@ public class Native2Java extends SceneTransformer {
         Type targetAPIReturnType = JNIResolve.extractMethodReturnType(nativeInvocation.invokeeSignature);
         SootClass targetAPICls = Scene.v().getSootClass(invokeeCls);
 
-        if(nativeInvocation.invokeeStatic){
-            Local returnValueLocal = Jimple.v().newLocal("returnValue", targetAPIReturnType);
-            body.getLocals().add(returnValueLocal);
+        // add returnValue local
+        Local returnValueLocal = Jimple.v().newLocal("returnValue", targetAPIReturnType);
+        body.getLocals().add(returnValueLocal);
 
+        if(nativeInvocation.invokeeStatic){
             if(targetAPIParamTypes.size() == 0){
                 units.add(Jimple.v().newAssignStmt(returnValueLocal, Jimple.v().newStaticInvokeExpr(Scene.v().makeMethodRef(targetAPICls, nativeInvocation.invokeeMethod, targetAPIParamTypes, targetAPIReturnType, true))));
             }else{
@@ -101,13 +108,9 @@ public class Native2Java extends SceneTransformer {
 
                 units.add(Jimple.v().newAssignStmt(returnValueLocal, Jimple.v().newStaticInvokeExpr(Scene.v().makeMethodRef(targetAPICls, nativeInvocation.invokeeMethod, targetAPIParamTypes, targetAPIReturnType, true), values)));
             }
-            units.add(Jimple.v().newReturnVoidStmt());
         }else{
             Local invokeeLocal = Jimple.v().newLocal("invokeeObject", RefType.v(invokeeCls));
             body.getLocals().add(invokeeLocal);
-
-            Local returnValueLocal = Jimple.v().newLocal("returnValue", targetAPIReturnType);
-            body.getLocals().add(returnValueLocal);
 
             if(targetAPIParamTypes.size() == 0){
                 units.add(Jimple.v().newAssignStmt(returnValueLocal, Jimple.v().newSpecialInvokeExpr(
@@ -121,8 +124,6 @@ public class Native2Java extends SceneTransformer {
                 units.add(Jimple.v().newAssignStmt(returnValueLocal, Jimple.v().newSpecialInvokeExpr(
                         invokeeLocal, Scene.v().makeMethodRef(targetAPICls, nativeInvocation.invokeeMethod, targetAPIParamTypes, targetAPIReturnType, false), values)));
             }
-
-            units.add(Jimple.v().newReturnStmt(returnValueLocal));
         }
     }
 
