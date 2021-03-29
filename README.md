@@ -3,7 +3,7 @@ Automatically transfer native API to Java Code
 
 
 ## Setup
-The following is required to set up APIUnitTest:
+The following is required to set up Native2Java:
 * MAC system
 * Intellj
 
