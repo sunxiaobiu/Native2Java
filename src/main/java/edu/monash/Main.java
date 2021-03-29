@@ -126,7 +126,7 @@ public class Main {
                             nativeInvocation.invokeeMethod = invocationList.get(6);
                             nativeInvocation.invokeeSignature = invocationList.get(7);
                             nativeInvocation.invokeeStatic = Boolean.parseBoolean(invocationList.get(8));
-                            if(size==10){
+                             if(size==10){
                                 nativeInvocation.invokeeDesc = invocationList.get(9);
                             }
                         }

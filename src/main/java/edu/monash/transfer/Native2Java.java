@@ -9,6 +9,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import soot.*;
 import soot.dava.internal.javaRep.DIntConstant;
+import soot.javaToJimple.LocalGenerator;
 import soot.jimple.*;
 import soot.jimple.toolkits.typing.fast.Integer127Type;
 import soot.jimple.toolkits.typing.fast.Integer1Type;
@@ -40,6 +41,9 @@ public class Native2Java extends SceneTransformer {
             //Pinpoint native method and its declare class
             SootClass declareCls = Scene.v().getSootClass(nativeInvocation.invokerCls);
             SootMethod nativeMethod = declareCls.getMethod(nativeInvocation.invokerMethod, sootMethodArgs);
+            if(!nativeMethod.isNative()){
+                nativeInvocation.substitudeMethodExist = true;
+            }
             if(null == nativeMethod){
                 throw new RuntimeException("Invalid nativeMethod method! [nativeMethodName]:"+nativeInvocation.invokerMethod);
             }
@@ -50,20 +54,42 @@ public class Native2Java extends SceneTransformer {
              *
              * }
              */
-            SootMethod substituteMethod;
-            if(nativeMethod.isStatic()){
-                substituteMethod = new SootMethod(nativeInvocation.invokerMethod, sootMethodArgs, returnType, Modifier.PUBLIC | Modifier.STATIC);
-            }else{
-                substituteMethod = new SootMethod(nativeInvocation.invokerMethod, sootMethodArgs, returnType, Modifier.PUBLIC);
+            JimpleBody body;
+            Chain units;
+            if(!nativeInvocation.substitudeMethodExist){
+                SootMethod substituteMethod;
+                if(nativeMethod.isStatic()){
+                    substituteMethod = new SootMethod(nativeInvocation.invokerMethod, sootMethodArgs, returnType, Modifier.PUBLIC | Modifier.STATIC);
+                }else{
+                    substituteMethod = new SootMethod(nativeInvocation.invokerMethod, sootMethodArgs, returnType, Modifier.PUBLIC);
+                }
+                declareCls.removeMethod(nativeMethod);
+                declareCls.addMethod(substituteMethod);
+
+                // create empty body
+                body = Jimple.v().newBody(substituteMethod);
+                LocalGenerator lg = new LocalGenerator(body);
+
+                // all parameters
+                for(int i = 0; i<sootMethodArgs.size(); i++){
+                    Type paramType = sootMethodArgs.get(i);
+                    Local originParameterLocal = lg.generateLocal(paramType);
+                    Unit originParameterU = Jimple.v().newIdentityStmt(originParameterLocal, Jimple.v().newParameterRef(paramType, i));
+                    body.getUnits().add(originParameterU);
+                }
+
+                // new
+                Local al = lg.generateLocal(declareCls.getType());
+                Unit newU = (Unit) Jimple.v().newIdentityStmt(al, Jimple.v().newThisRef(declareCls.getType()));
+                body.getUnits().add(newU);
+
+                substituteMethod.setActiveBody(body);
+                units = body.getUnits();
+            }else {
+                body = (JimpleBody)nativeMethod.getActiveBody();
+                units = body.getUnits();
             }
-            declareCls.removeMethod(nativeMethod);
-            declareCls.addMethod(substituteMethod);
 
-            // create empty body
-            JimpleBody body = Jimple.v().newBody(substituteMethod);
-
-            substituteMethod.setActiveBody(body);
-            Chain units = body.getUnits();
 
             /**
              * Heuristic analysis for unknown class name inferring
@@ -82,10 +108,18 @@ public class Native2Java extends SceneTransformer {
             }
 
             //add stmt "return xxx;" in units for ending
+            if(units.getPredOf(units.getLast()) instanceof ReturnStmt){
+                units.remove(units.getPredOf(units.getLast()));
+            }
             Type targetAPIReturnType = JNIResolve.extractMethodReturnType(nativeInvocation.invokeeSignature);
-            Local returnValueLocal = Jimple.v().newLocal("returnValue", targetAPIReturnType);
-            body.getLocals().add(returnValueLocal);
-            units.add(Jimple.v().newReturnStmt(returnValueLocal));
+            if(units.getLast() instanceof AssignStmt && ((AssignStmt) units.getLast()).getLeftOp().getType().toString().equals(targetAPIReturnType.toString())){
+                units.add(Jimple.v().newReturnStmt(((AssignStmt) units.getLast()).getLeftOp()));
+            }else{
+                Local returnValueLocal = Jimple.v().newLocal("returnValue", targetAPIReturnType);
+                body.getLocals().add(returnValueLocal);
+                units.add(Jimple.v().newReturnStmt(returnValueLocal));
+            }
+
         }
     }
 
@@ -102,10 +136,7 @@ public class Native2Java extends SceneTransformer {
             if(targetAPIParamTypes.size() == 0){
                 units.add(Jimple.v().newAssignStmt(returnValueLocal, Jimple.v().newStaticInvokeExpr(Scene.v().makeMethodRef(targetAPICls, nativeInvocation.invokeeMethod, targetAPIParamTypes, targetAPIReturnType, true))));
             }else{
-                List<Value> values = targetAPIParamTypes.stream().map(paramType->{
-                    return mockValueFromType(paramType);
-                }).collect(Collectors.toList());
-
+                List<Value> values = generateParamValues(body, targetAPIParamTypes);
                 units.add(Jimple.v().newAssignStmt(returnValueLocal, Jimple.v().newStaticInvokeExpr(Scene.v().makeMethodRef(targetAPICls, nativeInvocation.invokeeMethod, targetAPIParamTypes, targetAPIReturnType, true), values)));
             }
         }else{
@@ -116,15 +147,36 @@ public class Native2Java extends SceneTransformer {
                 units.add(Jimple.v().newAssignStmt(returnValueLocal, Jimple.v().newSpecialInvokeExpr(
                         invokeeLocal, Scene.v().makeMethodRef(targetAPICls, nativeInvocation.invokeeMethod, targetAPIParamTypes, targetAPIReturnType, false))));
             }else{
-                // TODO: 17/3/21 确认下list mock value是否正确
-                List<Value> values = targetAPIParamTypes.stream().map(paramType->{
-                    return mockValueFromType(paramType);
-                }).collect(Collectors.toList());
+                List<Value> values = generateParamValues(body, targetAPIParamTypes);
 
+                // TODO: 17/3/21 确认下list mock value是否正确
                 units.add(Jimple.v().newAssignStmt(returnValueLocal, Jimple.v().newSpecialInvokeExpr(
                         invokeeLocal, Scene.v().makeMethodRef(targetAPICls, nativeInvocation.invokeeMethod, targetAPIParamTypes, targetAPIReturnType, false), values)));
             }
         }
+    }
+
+    private List<Value> generateParamValues(JimpleBody body, List<Type> targetAPIParamTypes) {
+        return targetAPIParamTypes.stream().map(paramType -> {
+            //Heuristic Rule1. check if invoker Parameter matches invokee Parameter
+            for(Local paramLocal : body.getParameterLocals()){
+                if (paramType.toString().equals(paramLocal.getType().toString())) {
+                    return paramLocal;
+                }
+            }
+
+            //Heuristic Rule2. check if return value of pre-units match invokee Parameter
+            if(CollectionUtils.isNotEmpty(body.getUnits())){
+                for (Unit preUnit : body.getUnits()) {
+                    if (preUnit instanceof AssignStmt && ((AssignStmt) preUnit).getLeftOp().getType().toString().equals(paramType.toString())) {
+                        return ((AssignStmt) preUnit).getLeftOp();
+                    }
+                }
+            }
+
+            //Heuristic Rule3. generate dummy value
+            return mockValueFromType(paramType);
+        }).collect(Collectors.toList());
     }
 
     private Value mockValueFromType(Type paramType) {
@@ -175,7 +227,7 @@ public class Native2Java extends SceneTransformer {
 
     private static Value newPrimType(String className) {
         if (className.startsWith("java.lang.String")) {
-            return StringConstant.v("android");
+            return StringConstant.v("mock_value");
         } else if (className.startsWith("java.lang.Boolean")) {
             return  DIntConstant.v(1, BooleanType.v());
         } else if (className.startsWith("java.lang.Byte")) {

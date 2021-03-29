@@ -14,6 +14,7 @@ public class NativeInvocation {
     public boolean invokerStaticExport;
 
     public boolean hasInvokee = false;
+    public boolean substitudeMethodExist = false;
 
     public String invokeeCls;
     public String invokeeMethod;
