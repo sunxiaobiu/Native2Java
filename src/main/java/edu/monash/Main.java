@@ -23,7 +23,11 @@ public class Main {
         String apkPath = args[0];
         String forceAndroidJar = args[1];
         String osReaultsPath = args[2];
-        String outputPath = args[3];
+
+        String outputPath = "";
+        if(args.length == 4){
+            outputPath = args[3];
+        }
 
         //Read data from **.so.result files, stored in GlobalRef.nativeInvocationList
         collectSoResultsData(osReaultsPath);
@@ -42,7 +46,7 @@ public class Main {
                         "-process-dir", apkPath,
                         "-force-android-jar", forceAndroidJar,
                         "-cp", forceAndroidJar,
-                        "-d", outputPath + "_instrumented_app",
+                        "-d", outputPath + "instrumented_app",
                         "-ire",
                         "-pp",
                         "-keep-line-number",
