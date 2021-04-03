@@ -21,10 +21,10 @@ public class Main {
 
     public static void main(String[] args) throws IOException {
         String apkPath = args[0];
-        String forceAndroidJar = args[1];
+        String path2AndroidJar = args[1];
         String osReaultsPath = args[2];
 
-        String outputPath = "";
+        String outputPath = "instrumented_app";
         if(args.length == 4){
             outputPath = args[3];
         }
@@ -36,24 +36,21 @@ public class Main {
         if (!needInstrument()) return;
 
         //Instrument APK by transforming native API to its corresponding target java API.
-        instrumentAPK(apkPath, forceAndroidJar, outputPath);
+        instrumentAPK(apkPath, path2AndroidJar, outputPath);
     }
 
-    private static void instrumentAPK(String apkPath, String forceAndroidJar, String outputPath) {
-        G.reset();
+    private static void instrumentAPK(String apkPath, String path2AndroidJar, String outputPath) {
         String[] args2 =
                 {
                         "-process-dir", apkPath,
-                        "-force-android-jar", forceAndroidJar,
-                        "-cp", forceAndroidJar,
-                        "-d", outputPath + "instrumented_app",
+                        "-android-jars", path2AndroidJar,
+                        "-d", outputPath,
                         "-ire",
                         "-pp",
                         "-keep-line-number",
                         "-allow-phantom-refs",
                         "-w",
-                        "-p", "cg", "enabled:true",
-                        "-process-multiple-dex"
+                        "-p", "cg", "enabled:true"
                 };
 
         G.reset();
