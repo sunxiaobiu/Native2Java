@@ -70,6 +70,13 @@ public class Native2Java extends SceneTransformer {
                 body = Jimple.v().newBody(substituteMethod);
                 LocalGenerator lg = new LocalGenerator(body);
 
+                // new
+                if(!nativeMethod.isStatic()){
+                    Local al = lg.generateLocal(declareCls.getType());
+                    Unit newU = (Unit) Jimple.v().newIdentityStmt(al, Jimple.v().newThisRef(declareCls.getType()));
+                    body.getUnits().add(newU);
+                }
+
                 // all parameters
                 for(int i = 0; i<sootMethodArgs.size(); i++){
                     Type paramType = sootMethodArgs.get(i);
@@ -77,11 +84,6 @@ public class Native2Java extends SceneTransformer {
                     Unit originParameterU = Jimple.v().newIdentityStmt(originParameterLocal, Jimple.v().newParameterRef(paramType, i));
                     body.getUnits().add(originParameterU);
                 }
-
-                // new
-                Local al = lg.generateLocal(declareCls.getType());
-                Unit newU = (Unit) Jimple.v().newIdentityStmt(al, Jimple.v().newThisRef(declareCls.getType()));
-                body.getUnits().add(newU);
 
                 substituteMethod.setActiveBody(body);
                 units = body.getUnits();
