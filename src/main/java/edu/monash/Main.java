@@ -10,13 +10,12 @@ import soot.Scene;
 import soot.Transform;
 import soot.options.Options;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
-import java.io.IOException;
+import java.io.*;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class Main {
@@ -31,6 +30,9 @@ public class Main {
             outputPath = args[3];
         }
 
+
+        getMinSDKVersion(apkPath);
+
         //Read data from **.so.result files, stored in GlobalRef.nativeInvocationList
         collectSoResultsData(osReaultsPath);
 
@@ -41,13 +43,29 @@ public class Main {
         instrumentAPK(apkPath, path2AndroidJar, outputPath);
     }
 
+    private static void getMinSDKVersion(String apkPath) throws IOException {
+        String command = "aapt dump badging "+ apkPath + " | grep sdkVersion:";
+        Process process = Runtime.getRuntime().exec(command);
+        InputStream is = process.getInputStream();
+        BufferedReader reader = new BufferedReader(new InputStreamReader(is));
+        String line;
+        while((line = reader.readLine())!= null){
+            if(line.startsWith("sdkVersion:")){
+                GlobalRef.minSDKVersion = Integer.parseInt(getSubUtilSimple(line, "('[0-9]+')").replaceAll("'", ""));
+                System.out.println("minSDKVersion:"+GlobalRef.minSDKVersion);
+            }
+        }
+    }
+
     private static void instrumentAPK(String apkPath, String path2AndroidJar, String outputPath) {
         G.reset();
 
         Options.v().set_src_prec(Options.src_prec_apk);
         Options.v().set_output_format(Options.output_format_dex);
-        Options.v().set_process_multiple_dex(true);
-        Options.v().set_search_dex_in_archives(true);
+        if(GlobalRef.minSDKVersion >= 22){
+            Options.v().set_process_multiple_dex(true);
+            Options.v().set_search_dex_in_archives(true);
+        }
         Options.v().set_no_bodies_for_excluded(true);
         Options.v().set_android_jars(path2AndroidJar);
         Options.v().set_process_dir(Collections.singletonList(apkPath));
@@ -142,5 +160,21 @@ public class Main {
                 e.printStackTrace();
             }
         });
+    }
+
+    /**
+     * 返回单个字符串，若匹配到多个的话就返回第一个，方法与getSubUtil一样
+     *
+     * @param soap
+     * @param rgex
+     * @return
+     */
+    public static String getSubUtilSimple(String soap, String rgex) {
+        Pattern pattern = Pattern.compile(rgex);// 匹配的模式
+        Matcher m = pattern.matcher(soap);
+        while (m.find()) {
+            return m.group(1);
+        }
+        return "";
     }
 }

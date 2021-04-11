@@ -9,5 +9,6 @@ public class GlobalRef
 {
 
  public static List<NativeInvocation> nativeInvocationList = new ArrayList<>();
+ public static Integer minSDKVersion = 1;
 
 }
