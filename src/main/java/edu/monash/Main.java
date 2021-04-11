@@ -30,7 +30,6 @@ public class Main {
             outputPath = args[3];
         }
 
-
         getMinSDKVersion(apkPath);
 
         //Read data from **.so.result files, stored in GlobalRef.nativeInvocationList
