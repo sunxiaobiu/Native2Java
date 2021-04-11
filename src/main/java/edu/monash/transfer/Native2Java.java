@@ -41,13 +41,14 @@ public class Native2Java extends SceneTransformer {
             //Pinpoint native method and its declare class
             SootClass declareCls = Scene.v().getSootClass(nativeInvocation.invokerCls);
             SootMethod nativeMethod = declareCls.getMethod(nativeInvocation.invokerMethod, sootMethodArgs);
-            if(!nativeMethod.isNative()){
-                nativeInvocation.substitudeMethodExist = true;
-            }
             if(null == nativeMethod){
                 System.err.println("Invalid nativeMethod method! [nativeMethodName]:"+nativeInvocation.invokerMethod);
                 continue;
             }
+            if(!nativeMethod.isNative()){
+                nativeInvocation.substitudeMethodExist = true;
+            }
+
 
             /**
              * step1. Insert a substitute method into declare class

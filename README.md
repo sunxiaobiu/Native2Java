@@ -21,3 +21,10 @@ mvn clean install
    
 ## Output
 * Refer to [path of instrumented file] folder to obtain the instrumented APK.
+
+##Tips
+* This tool use aapt to load manifest of APK, so you need to set appt as an environmental variable as follow:
+
+AAPT_HOME=/your_local_path/Library/Android/sdk/build-tools/29.0.2
+export AAPT_HOME
+export PATH=$PATH:$AAPT_HOME
