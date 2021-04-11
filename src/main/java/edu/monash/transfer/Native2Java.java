@@ -42,7 +42,7 @@ public class Native2Java extends SceneTransformer {
             SootClass declareCls = Scene.v().getSootClass(nativeInvocation.invokerCls);
             SootMethod nativeMethod = declareCls.getMethod(nativeInvocation.invokerMethod, sootMethodArgs);
             if(null == nativeMethod){
-                System.err.println("Invalid nativeMethod method! [nativeMethodName]:"+nativeInvocation.invokerMethod);
+                GlobalRef.printErr("Invalid nativeMethod method! [nativeMethodName]:"+nativeInvocation.invokerMethod);
                 continue;
             }
             if(!nativeMethod.isNative()){
@@ -109,11 +109,11 @@ public class Native2Java extends SceneTransformer {
                 SootClass invokeeCls = Scene.v().getSootClass(nativeInvocation.invokeeCls);
                 invokeeMethod = invokeeCls.getMethod(nativeInvocation.invokeeMethod, invokeeMethodArgs);
             } catch (Exception e) {
-                System.err.println("Invalid invokee Method! [invokeeCls]:"+nativeInvocation.invokeeCls +"; [invokeeMethod]:"+nativeInvocation.invokeeMethod+"; [invokeeMethodArgs]:"+nativeInvocation.invokeeSignature);
+                GlobalRef.printErr("Invalid invokee Method! [invokeeCls]:"+nativeInvocation.invokeeCls +"; [invokeeMethod]:"+nativeInvocation.invokeeMethod+"; [invokeeMethodArgs]:"+nativeInvocation.invokeeSignature);
                 continue;
             }
             if(null == invokeeMethod){
-                System.err.println("Invalid invokee Method! [invokeeCls]:"+nativeInvocation.invokeeCls +"; [invokeeMethod]:"+nativeInvocation.invokeeMethod+"; [invokeeMethodArgs]:"+nativeInvocation.invokeeSignature);
+                GlobalRef.printErr("Invalid invokee Method! [invokeeCls]:"+nativeInvocation.invokeeCls +"; [invokeeMethod]:"+nativeInvocation.invokeeMethod+"; [invokeeMethodArgs]:"+nativeInvocation.invokeeSignature);
                 continue;
             }
 
