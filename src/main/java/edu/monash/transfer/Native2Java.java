@@ -45,7 +45,8 @@ public class Native2Java extends SceneTransformer {
                 nativeInvocation.substitudeMethodExist = true;
             }
             if(null == nativeMethod){
-                throw new RuntimeException("Invalid nativeMethod method! [nativeMethodName]:"+nativeInvocation.invokerMethod);
+                System.err.println("Invalid nativeMethod method! [nativeMethodName]:"+nativeInvocation.invokerMethod);
+                continue;
             }
 
             /**
@@ -97,6 +98,24 @@ public class Native2Java extends SceneTransformer {
              * Heuristic analysis for unknown class name inferring
              */
             HeuristicUnknownValueInfer.getInstance().infer(nativeInvocation);
+
+            /**
+             * Skip invalid invokee Method.
+             */
+            SootMethod invokeeMethod = null;
+            try {
+                List<Type> invokeeMethodArgs = JNIResolve.extractMethodArgs(nativeInvocation.invokeeSignature);
+                SootClass invokeeCls = Scene.v().getSootClass(nativeInvocation.invokeeCls);
+                invokeeMethod = invokeeCls.getMethod(nativeInvocation.invokeeMethod, invokeeMethodArgs);
+            } catch (Exception e) {
+                System.err.println("Invalid invokee Method! [invokeeCls]:"+nativeInvocation.invokeeCls +"; [invokeeMethod]:"+nativeInvocation.invokeeMethod+"; [invokeeMethodArgs]:"+nativeInvocation.invokeeSignature);
+                continue;
+            }
+            if(null == invokeeMethod){
+                System.err.println("Invalid invokee Method! [invokeeCls]:"+nativeInvocation.invokeeCls +"; [invokeeMethod]:"+nativeInvocation.invokeeMethod+"; [invokeeMethodArgs]:"+nativeInvocation.invokeeSignature);
+                continue;
+            }
+
 
             /**
              * step2. Insert target API into nativeMethod

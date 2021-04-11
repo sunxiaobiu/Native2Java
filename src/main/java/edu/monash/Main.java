@@ -6,6 +6,7 @@ import edu.monash.utils.FileCollector;
 import org.apache.commons.collections4.CollectionUtils;
 import soot.G;
 import soot.PackManager;
+import soot.Scene;
 import soot.Transform;
 import soot.options.Options;
 
@@ -14,6 +15,7 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -40,30 +42,33 @@ public class Main {
     }
 
     private static void instrumentAPK(String apkPath, String path2AndroidJar, String outputPath) {
-        String[] args2 =
-                {
-                        "-process-dir", apkPath,
-                        "-android-jars", path2AndroidJar,
-                        "-d", outputPath,
-                        "-ire",
-                        "-pp",
-                        "-keep-line-number",
-                        "-allow-phantom-refs",
-                        "-w",
-                        "-p", "cg", "enabled:true"
-                };
-
         G.reset();
 
         Options.v().set_src_prec(Options.src_prec_apk);
         Options.v().set_output_format(Options.output_format_dex);
         Options.v().set_process_multiple_dex(true);
         Options.v().set_search_dex_in_archives(true);
+        Options.v().set_no_bodies_for_excluded(true);
+        Options.v().set_android_jars(path2AndroidJar);
+        Options.v().set_process_dir(Collections.singletonList(apkPath));
+        Options.v().set_whole_program(true);
+        Options.v().set_allow_phantom_refs(true);
+        Options.v().set_keep_line_number(true);
+        Options.v().set_ignore_resolution_errors(true);
+        Options.v().set_output_dir(outputPath);
+        Options.v().set_prepend_classpath(true);
+        Options.v().setPhaseOption("cg.cha", "on");
+        Options.v().set_force_overwrite(true);
+        Options.v().set_full_resolver(true);
+
+        Scene.v().loadNecessaryClasses();
+        Scene.v().loadBasicClasses();
+        Scene.v().loadDynamicClasses();
 
         PackManager.v().getPack("wjtp").add(new Transform("wjtp.Native2Java", new Native2Java()));
 
-        soot.Main.main(args2);
-        G.reset();
+        PackManager.v().runPacks();
+        PackManager.v().writeOutput();
     }
 
     private static boolean needInstrument() {
@@ -106,8 +111,7 @@ public class Main {
                         }else if(size==9 || size==10){
                             nativeInvocation.hasInvokee = true;
                         }else{
-                            System.out.println("Invalid Input : "+line);
-                            //throw new RuntimeException("Invalid Input!");
+                            System.err.println("Invalid Input : "+line);
                             continue;
                         }
 
