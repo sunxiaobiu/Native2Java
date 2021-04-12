@@ -5,6 +5,7 @@ import edu.monash.HeuristicUnknownValueInfer;
 import edu.monash.model.NativeInvocation;
 import edu.monash.utils.ApplicationClassFilter;
 import edu.monash.utils.JNIResolve;
+import edu.monash.utils.SootHelper;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import soot.*;
@@ -24,130 +25,140 @@ public class Native2Java extends SceneTransformer {
     @Override
     protected void internalTransform(String phaseName, Map<String, String> options) {
 
-        for(NativeInvocation nativeInvocation : GlobalRef.nativeInvocationList){
-            if(!nativeInvocation.hasInvokee){
+        for (NativeInvocation nativeInvocation : GlobalRef.nativeInvocationList) {
+            if (!nativeInvocation.hasInvokee) {
                 continue;
             }
 
-            /**
-             * Preprocess - data collection
-             */
-            //extract Args
-            List<Type> sootMethodArgs = JNIResolve.extractMethodArgs(nativeInvocation.invokerSignature);
-
-            //extract return value
-            Type returnType = JNIResolve.extractMethodReturnType(nativeInvocation.invokerSignature);
-
-            //Pinpoint native method and its declare class
-            SootClass declareCls = null;
-            SootMethod nativeMethod = null;
             try {
-                declareCls = Scene.v().getSootClass(nativeInvocation.invokerCls);
-                nativeMethod = declareCls.getMethod(nativeInvocation.invokerMethod, sootMethodArgs);
-            }catch (Exception e) {
-                GlobalRef.printErr("sootMethodArgs:"+sootMethodArgs);
-                GlobalRef.printErr("Invalid invoker Method! [invokerCls]:"+nativeInvocation.invokerCls +"; [invokerMethod]:"+nativeInvocation.invokerMethod+"; [invokerMethodArgs]:"+nativeInvocation.invokerSignature);
-                continue;
-            }
-            if(null == nativeMethod){
-                GlobalRef.printErr("Invoker Method is null! [invokerCls]:"+nativeInvocation.invokerCls +"; [invokerMethod]:"+nativeInvocation.invokerMethod+"; [invokerMethodArgs]:"+nativeInvocation.invokerSignature);
-                continue;
-            }
-            if(!nativeMethod.isNative()){
-                nativeInvocation.substitudeMethodExist = true;
-            }
+                /**
+                 * Preprocess - data collection
+                 */
+                //extract Args
+                List<Type> sootMethodArgs = JNIResolve.extractMethodArgs(nativeInvocation.invokerSignature);
 
+                //extract return value
+                Type returnType = JNIResolve.extractMethodReturnType(nativeInvocation.invokerSignature);
 
-            /**
-             * step1. Insert a substitute method into declare class
-             * public returnType nativeMethodName(ParamTypes) {
-             *
-             * }
-             */
-            JimpleBody body;
-            Chain units;
-            if(!nativeInvocation.substitudeMethodExist){
-                SootMethod substituteMethod;
-                if(nativeMethod.isStatic()){
-                    substituteMethod = new SootMethod(nativeInvocation.invokerMethod, sootMethodArgs, returnType, Modifier.PUBLIC | Modifier.STATIC);
-                }else{
-                    substituteMethod = new SootMethod(nativeInvocation.invokerMethod, sootMethodArgs, returnType, Modifier.PUBLIC);
+                //Pinpoint native method and its declare class
+                SootClass declareCls = null;
+                SootMethod nativeMethod = null;
+                try {
+                    declareCls = Scene.v().getSootClass(nativeInvocation.invokerCls);
+                    List<SootMethod> allPossibleMethods = SootHelper.getAllReachableMethods(declareCls);
+                    nativeMethod = SootHelper.getMethod(allPossibleMethods, nativeInvocation.invokerMethod, sootMethodArgs);
+                    //nativeMethod = declareCls.getMethod(nativeInvocation.invokerMethod, sootMethodArgs);
+                } catch (Exception e) {
+                    GlobalRef.printErr("sootMethodArgs:" + sootMethodArgs);
+                    GlobalRef.printErr("Invalid invoker Method! [invokerCls]:" + nativeInvocation.invokerCls + "; [invokerMethod]:" + nativeInvocation.invokerMethod + "; [invokerMethodArgs]:" + nativeInvocation.invokerSignature);
+                    continue;
                 }
-                declareCls.removeMethod(nativeMethod);
-                declareCls.addMethod(substituteMethod);
-
-                // create empty body
-                body = Jimple.v().newBody(substituteMethod);
-                LocalGenerator lg = new LocalGenerator(body);
-
-                // new
-                if(!nativeMethod.isStatic()){
-                    Local al = lg.generateLocal(declareCls.getType());
-                    Unit newU = (Unit) Jimple.v().newIdentityStmt(al, Jimple.v().newThisRef(declareCls.getType()));
-                    body.getUnits().add(newU);
+                if (null == nativeMethod) {
+                    GlobalRef.printErr("Invoker Method is null! [invokerCls]:" + nativeInvocation.invokerCls + "; [invokerMethod]:" + nativeInvocation.invokerMethod + "; [invokerMethodArgs]:" + nativeInvocation.invokerSignature);
+                    continue;
+                }
+                if (!nativeMethod.isNative()) {
+                    nativeInvocation.substitudeMethodExist = true;
                 }
 
-                // all parameters
-                for(int i = 0; i<sootMethodArgs.size(); i++){
-                    Type paramType = sootMethodArgs.get(i);
-                    Local originParameterLocal = lg.generateLocal(paramType);
-                    Unit originParameterU = Jimple.v().newIdentityStmt(originParameterLocal, Jimple.v().newParameterRef(paramType, i));
-                    body.getUnits().add(originParameterU);
+
+                /**
+                 * step1. Insert a substitute method into declare class
+                 * public returnType nativeMethodName(ParamTypes) {
+                 *
+                 * }
+                 */
+                JimpleBody body;
+                Chain units;
+                if (!nativeInvocation.substitudeMethodExist) {
+                    SootMethod substituteMethod;
+                    if (nativeMethod.isStatic()) {
+                        substituteMethod = new SootMethod(nativeInvocation.invokerMethod, sootMethodArgs, returnType, Modifier.PUBLIC | Modifier.STATIC);
+                    } else {
+                        substituteMethod = new SootMethod(nativeInvocation.invokerMethod, sootMethodArgs, returnType, Modifier.PUBLIC);
+                    }
+                    declareCls.removeMethod(nativeMethod);
+                    declareCls.addMethod(substituteMethod);
+
+                    // create empty body
+                    body = Jimple.v().newBody(substituteMethod);
+                    LocalGenerator lg = new LocalGenerator(body);
+
+                    // new
+                    if (!nativeMethod.isStatic()) {
+                        Local al = lg.generateLocal(declareCls.getType());
+                        Unit newU = (Unit) Jimple.v().newIdentityStmt(al, Jimple.v().newThisRef(declareCls.getType()));
+                        body.getUnits().add(newU);
+                    }
+
+                    // all parameters
+                    for (int i = 0; i < sootMethodArgs.size(); i++) {
+                        Type paramType = sootMethodArgs.get(i);
+                        Local originParameterLocal = lg.generateLocal(paramType);
+                        Unit originParameterU = Jimple.v().newIdentityStmt(originParameterLocal, Jimple.v().newParameterRef(paramType, i));
+                        body.getUnits().add(originParameterU);
+                    }
+
+                    substituteMethod.setActiveBody(body);
+                    units = body.getUnits();
+                } else {
+                    body = (JimpleBody) nativeMethod.getActiveBody();
+                    units = body.getUnits();
                 }
 
-                substituteMethod.setActiveBody(body);
-                units = body.getUnits();
-            }else {
-                body = (JimpleBody)nativeMethod.getActiveBody();
-                units = body.getUnits();
-            }
+
+                /**
+                 * Heuristic analysis for unknown class name inferring
+                 */
+                HeuristicUnknownValueInfer.getInstance().infer(nativeInvocation);
+
+                /**
+                 * Skip invalid invokee Method.
+                 */
+                SootMethod invokeeMethod = null;
+                try {
+                    List<Type> invokeeMethodArgs = JNIResolve.extractMethodArgs(nativeInvocation.invokeeSignature);
+                    SootClass invokeeCls = Scene.v().getSootClass(nativeInvocation.invokeeCls);
+                    List<SootMethod> allPossibleInvokeeMethods = SootHelper.getAllReachableMethods(invokeeCls);
+                    invokeeMethod = SootHelper.getMethod(allPossibleInvokeeMethods, nativeInvocation.invokeeMethod, invokeeMethodArgs);
+                } catch (Exception e) {
+                    GlobalRef.printErr("Invalid invokee Method! [invokeeCls]:" + nativeInvocation.invokeeCls + "; [invokeeMethod]:" + nativeInvocation.invokeeMethod + "; [invokeeMethodArgs]:" + nativeInvocation.invokeeSignature);
+                    continue;
+                }
+                if (null == invokeeMethod) {
+                    GlobalRef.printErr("Invalid invokee Method! [invokeeCls]:" + nativeInvocation.invokeeCls + "; [invokeeMethod]:" + nativeInvocation.invokeeMethod + "; [invokeeMethodArgs]:" + nativeInvocation.invokeeSignature);
+                    continue;
+                }
 
 
-            /**
-             * Heuristic analysis for unknown class name inferring
-             */
-            HeuristicUnknownValueInfer.getInstance().infer(nativeInvocation);
+                /**
+                 * step2. Insert target API into nativeMethod
+                 */
+                if (StringUtils.isNotBlank(nativeInvocation.invokeeCls)) {
+                    insertTargetAPI(nativeInvocation, body, units, nativeInvocation.invokeeCls);
+                } else if (CollectionUtils.isNotEmpty(nativeInvocation.inferredClsList)) {
+                    for (String inferredCls : nativeInvocation.inferredClsList) {
+                        insertTargetAPI(nativeInvocation, body, units, inferredCls);
+                    }
+                }
 
-            /**
-             * Skip invalid invokee Method.
-             */
-            SootMethod invokeeMethod = null;
-            try {
-                List<Type> invokeeMethodArgs = JNIResolve.extractMethodArgs(nativeInvocation.invokeeSignature);
-                SootClass invokeeCls = Scene.v().getSootClass(nativeInvocation.invokeeCls);
-                invokeeMethod = invokeeCls.getMethod(nativeInvocation.invokeeMethod, invokeeMethodArgs);
+                //add stmt "return xxx;" in units for ending
+                if (units.getPredOf(units.getLast()) instanceof ReturnStmt) {
+                    units.remove(units.getPredOf(units.getLast()));
+                }
+                Type targetAPIReturnType = JNIResolve.extractMethodReturnType(nativeInvocation.invokeeSignature);
+                if (units.getLast() instanceof AssignStmt && ((AssignStmt) units.getLast()).getLeftOp().getType().toString().equals(targetAPIReturnType.toString())) {
+                    units.add(Jimple.v().newReturnStmt(((AssignStmt) units.getLast()).getLeftOp()));
+                } else {
+                    Local returnValueLocal = Jimple.v().newLocal("returnValue", targetAPIReturnType);
+                    body.getLocals().add(returnValueLocal);
+                    units.add(Jimple.v().newReturnStmt(returnValueLocal));
+                }
             } catch (Exception e) {
-                GlobalRef.printErr("Invalid invokee Method! [invokeeCls]:"+nativeInvocation.invokeeCls +"; [invokeeMethod]:"+nativeInvocation.invokeeMethod+"; [invokeeMethodArgs]:"+nativeInvocation.invokeeSignature);
+                GlobalRef.printErr("Fail Instrument! " +
+                        "[invokerCls]:" + nativeInvocation.invokerCls + "; [invokerMethod]:" + nativeInvocation.invokerMethod + "; [invokerMethodArgs]:" + nativeInvocation.invokerSignature +
+                        "[invokeeCls]:" + nativeInvocation.invokeeCls + "; [invokeeMethod]:" + nativeInvocation.invokeeMethod + "; [invokeeMethodArgs]:" + nativeInvocation.invokeeSignature);
                 continue;
-            }
-            if(null == invokeeMethod){
-                GlobalRef.printErr("Invalid invokee Method! [invokeeCls]:"+nativeInvocation.invokeeCls +"; [invokeeMethod]:"+nativeInvocation.invokeeMethod+"; [invokeeMethodArgs]:"+nativeInvocation.invokeeSignature);
-                continue;
-            }
-
-
-            /**
-             * step2. Insert target API into nativeMethod
-             */
-            if(StringUtils.isNotBlank(nativeInvocation.invokeeCls)){
-                insertTargetAPI(nativeInvocation, body, units, nativeInvocation.invokeeCls);
-            }else if(CollectionUtils.isNotEmpty(nativeInvocation.inferredClsList)){
-                for(String inferredCls : nativeInvocation.inferredClsList){
-                    insertTargetAPI(nativeInvocation, body, units, inferredCls);
-                }
-            }
-
-            //add stmt "return xxx;" in units for ending
-            if(units.getPredOf(units.getLast()) instanceof ReturnStmt){
-                units.remove(units.getPredOf(units.getLast()));
-            }
-            Type targetAPIReturnType = JNIResolve.extractMethodReturnType(nativeInvocation.invokeeSignature);
-            if(units.getLast() instanceof AssignStmt && ((AssignStmt) units.getLast()).getLeftOp().getType().toString().equals(targetAPIReturnType.toString())){
-                units.add(Jimple.v().newReturnStmt(((AssignStmt) units.getLast()).getLeftOp()));
-            }else{
-                Local returnValueLocal = Jimple.v().newLocal("returnValue", targetAPIReturnType);
-                body.getLocals().add(returnValueLocal);
-                units.add(Jimple.v().newReturnStmt(returnValueLocal));
             }
 
         }
@@ -162,21 +173,21 @@ public class Native2Java extends SceneTransformer {
         Local returnValueLocal = Jimple.v().newLocal("returnValue", targetAPIReturnType);
         body.getLocals().add(returnValueLocal);
 
-        if(nativeInvocation.invokeeStatic){
-            if(targetAPIParamTypes.size() == 0){
+        if (nativeInvocation.invokeeStatic) {
+            if (targetAPIParamTypes.size() == 0) {
                 units.add(Jimple.v().newAssignStmt(returnValueLocal, Jimple.v().newStaticInvokeExpr(Scene.v().makeMethodRef(targetAPICls, nativeInvocation.invokeeMethod, targetAPIParamTypes, targetAPIReturnType, true))));
-            }else{
+            } else {
                 List<Value> values = generateParamValues(body, targetAPIParamTypes);
                 units.add(Jimple.v().newAssignStmt(returnValueLocal, Jimple.v().newStaticInvokeExpr(Scene.v().makeMethodRef(targetAPICls, nativeInvocation.invokeeMethod, targetAPIParamTypes, targetAPIReturnType, true), values)));
             }
-        }else{
+        } else {
             Local invokeeLocal = Jimple.v().newLocal("invokeeObject", RefType.v(invokeeCls));
             body.getLocals().add(invokeeLocal);
 
-            if(targetAPIParamTypes.size() == 0){
+            if (targetAPIParamTypes.size() == 0) {
                 units.add(Jimple.v().newAssignStmt(returnValueLocal, Jimple.v().newSpecialInvokeExpr(
                         invokeeLocal, Scene.v().makeMethodRef(targetAPICls, nativeInvocation.invokeeMethod, targetAPIParamTypes, targetAPIReturnType, false))));
-            }else{
+            } else {
                 List<Value> values = generateParamValues(body, targetAPIParamTypes);
 
                 // TODO: 17/3/21 确认下list mock value是否正确
@@ -189,14 +200,14 @@ public class Native2Java extends SceneTransformer {
     private List<Value> generateParamValues(JimpleBody body, List<Type> targetAPIParamTypes) {
         return targetAPIParamTypes.stream().map(paramType -> {
             //Heuristic Rule1. check if invoker Parameter matches invokee Parameter
-            for(Local paramLocal : body.getParameterLocals()){
+            for (Local paramLocal : body.getParameterLocals()) {
                 if (paramType.toString().equals(paramLocal.getType().toString())) {
                     return paramLocal;
                 }
             }
 
             //Heuristic Rule2. check if return value of pre-units match invokee Parameter
-            if(CollectionUtils.isNotEmpty(body.getUnits())){
+            if (CollectionUtils.isNotEmpty(body.getUnits())) {
                 for (Unit preUnit : body.getUnits()) {
                     if (preUnit instanceof AssignStmt && ((AssignStmt) preUnit).getLeftOp().getType().toString().equals(paramType.toString())) {
                         return ((AssignStmt) preUnit).getLeftOp();
@@ -210,16 +221,16 @@ public class Native2Java extends SceneTransformer {
     }
 
     private Value mockValueFromType(Type paramType) {
-        if(paramType instanceof PrimType){
+        if (paramType instanceof PrimType) {
             Value defaultValue4PrimType = newPrimType((PrimType) paramType);
-            if(null != defaultValue4PrimType){
+            if (null != defaultValue4PrimType) {
                 return defaultValue4PrimType;
             }
         }
 
-        if(ApplicationClassFilter.isJavaBasicType(paramType.toString())){
+        if (ApplicationClassFilter.isJavaBasicType(paramType.toString())) {
             Value defaultValue4PrimType = newPrimType(paramType.toString());
-            if(null != defaultValue4PrimType){
+            if (null != defaultValue4PrimType) {
                 return defaultValue4PrimType;
             }
         }
@@ -259,7 +270,7 @@ public class Native2Java extends SceneTransformer {
         if (className.startsWith("java.lang.String")) {
             return StringConstant.v("mock_value");
         } else if (className.startsWith("java.lang.Boolean")) {
-            return  DIntConstant.v(1, BooleanType.v());
+            return DIntConstant.v(1, BooleanType.v());
         } else if (className.startsWith("java.lang.Byte")) {
             return DIntConstant.v(1, ByteType.v());
         } else if (className.startsWith("java.lang.Character")) {

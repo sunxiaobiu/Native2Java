@@ -50,7 +50,7 @@ public class Main {
     private static void getMinSDKVersion(String apkPath) throws IOException, XmlPullParserException {
         ProcessManifest manifest = new ProcessManifest(apkPath);
         GlobalRef.minSDKVersion = manifest.getMinSdkVersion();
-        System.out.println("minSDKVersion:" + GlobalRef.minSDKVersion);
+        GlobalRef.print("minSDKVersion:" + GlobalRef.minSDKVersion);
     }
 
     private static void instrumentAPK(String apkPath, String path2AndroidJar, String outputPath) {
