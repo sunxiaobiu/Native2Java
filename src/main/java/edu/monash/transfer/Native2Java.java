@@ -49,7 +49,6 @@ public class Native2Java extends SceneTransformer {
                     nativeMethod = SootHelper.getMethod(allPossibleMethods, nativeInvocation.invokerMethod, sootMethodArgs);
                     //nativeMethod = declareCls.getMethod(nativeInvocation.invokerMethod, sootMethodArgs);
                 } catch (Exception e) {
-                    GlobalRef.printErr("sootMethodArgs:" + sootMethodArgs);
                     GlobalRef.printErr("Invalid invoker Method! [invokerCls]:" + nativeInvocation.invokerCls + "; [invokerMethod]:" + nativeInvocation.invokerMethod + "; [invokerMethodArgs]:" + nativeInvocation.invokerSignature);
                     continue;
                 }
