@@ -32,6 +32,9 @@ public class Main {
             outputPath = args[3];
         }
 
+        File f = new File(apkPath);
+        GlobalRef.appName = f.getName();
+
         getMinSDKVersion(apkPath);
 
         //Read data from **.so.result files, stored in GlobalRef.nativeInvocationList
@@ -84,7 +87,7 @@ public class Main {
 
     private static boolean needInstrument() {
         if(CollectionUtils.isEmpty(GlobalRef.nativeInvocationList)){
-            System.out.println("NativeInvocationList is NONE, no need to instrument!");
+            GlobalRef.print("NativeInvocationList is NONE, no need to instrument!");
             return false;
         }
 
@@ -92,7 +95,7 @@ public class Main {
             return Boolean.TRUE.equals(nativeInvocation.hasInvokee);
         }).collect(Collectors.toList());
         if(CollectionUtils.isEmpty(effectiveInvocationList)){
-            System.out.println("No effective invocations in this App, no need to instrument!");
+            GlobalRef.print("No effective invocations in this App, no need to instrument!");
             return false;
         }
         return true;
@@ -122,7 +125,7 @@ public class Main {
                         }else if(size==9 || size==10){
                             nativeInvocation.hasInvokee = true;
                         }else{
-                            System.err.println("Invalid Input : "+line);
+                            GlobalRef.printErr("Invalid Input : "+line);
                             continue;
                         }
 
