@@ -4,10 +4,12 @@ import edu.monash.model.NativeInvocation;
 import edu.monash.transfer.Native2Java;
 import edu.monash.utils.FileCollector;
 import org.apache.commons.collections4.CollectionUtils;
+import org.xmlpull.v1.XmlPullParserException;
 import soot.G;
 import soot.PackManager;
 import soot.Scene;
 import soot.Transform;
+import soot.jimple.infoflow.android.manifest.ProcessManifest;
 import soot.options.Options;
 
 import java.io.*;
@@ -20,7 +22,7 @@ import java.util.stream.Collectors;
 
 public class Main {
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException, XmlPullParserException {
         String apkPath = args[0];
         String path2AndroidJar = args[1];
         String osReaultsPath = args[2];
@@ -42,18 +44,10 @@ public class Main {
         instrumentAPK(apkPath, path2AndroidJar, outputPath);
     }
 
-    private static void getMinSDKVersion(String apkPath) throws IOException {
-        String command = "aapt dump badging "+ apkPath + " | grep sdkVersion:";
-        Process process = Runtime.getRuntime().exec(command);
-        InputStream is = process.getInputStream();
-        BufferedReader reader = new BufferedReader(new InputStreamReader(is));
-        String line;
-        while((line = reader.readLine())!= null){
-            if(line.startsWith("sdkVersion:")){
-                GlobalRef.minSDKVersion = Integer.parseInt(getSubUtilSimple(line, "('[0-9]+')").replaceAll("'", ""));
-                System.out.println("minSDKVersion:"+GlobalRef.minSDKVersion);
-            }
-        }
+    private static void getMinSDKVersion(String apkPath) throws IOException, XmlPullParserException {
+        ProcessManifest manifest = new ProcessManifest(apkPath);
+        GlobalRef.minSDKVersion = manifest.getMinSdkVersion();
+        System.out.println("minSDKVersion:" + GlobalRef.minSDKVersion);
     }
 
     private static void instrumentAPK(String apkPath, String path2AndroidJar, String outputPath) {
