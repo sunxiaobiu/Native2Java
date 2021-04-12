@@ -39,10 +39,18 @@ public class Native2Java extends SceneTransformer {
             Type returnType = JNIResolve.extractMethodReturnType(nativeInvocation.invokerSignature);
 
             //Pinpoint native method and its declare class
-            SootClass declareCls = Scene.v().getSootClass(nativeInvocation.invokerCls);
-            SootMethod nativeMethod = declareCls.getMethod(nativeInvocation.invokerMethod, sootMethodArgs);
+            SootClass declareCls = null;
+            SootMethod nativeMethod = null;
+            try {
+                declareCls = Scene.v().getSootClass(nativeInvocation.invokerCls);
+                nativeMethod = declareCls.getMethod(nativeInvocation.invokerMethod, sootMethodArgs);
+            }catch (Exception e) {
+                GlobalRef.printErr("sootMethodArgs:"+sootMethodArgs);
+                GlobalRef.printErr("Invalid invoker Method! [invokerCls]:"+nativeInvocation.invokerCls +"; [invokerMethod]:"+nativeInvocation.invokerMethod+"; [invokerMethodArgs]:"+nativeInvocation.invokerSignature);
+                continue;
+            }
             if(null == nativeMethod){
-                GlobalRef.printErr("Invalid nativeMethod method! [nativeMethodName]:"+nativeInvocation.invokerMethod);
+                GlobalRef.printErr("Invoker Method is null! [invokerCls]:"+nativeInvocation.invokerCls +"; [invokerMethod]:"+nativeInvocation.invokerMethod+"; [invokerMethodArgs]:"+nativeInvocation.invokerSignature);
                 continue;
             }
             if(!nativeMethod.isNative()){
