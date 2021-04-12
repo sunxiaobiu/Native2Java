@@ -12,7 +12,10 @@ The following is required to set up Native2Java:
 * cd Native2Java
 
 ##### Step 2: build package：
+```
+./res/loadDependencies.sh
 mvn clean install
+```
 
 ##### Step 3: example of running Native2Java(4 parameters):
 * Parameters are needed here: [your_apk_path.apk],[path of android.jar],[path of os.result files],[path of instrumented file]
